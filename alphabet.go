@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 
 	"golang.org/x/text/unicode/norm"
@@ -11,12 +10,16 @@ import (
 type Alphabet struct {
 	symbols      []string
 	groups       map[string][]string // list of symbols that belong to group 'key'
-	sym2groupMap map[string][]string
-	symbolsByLen map[int]Set[string]
+	sym2groupMap map[string][]string //maps symbol to a group
+	symbolsByLen map[int]Set[string] //maps symbols by length (in runes)
 	maxSymbolLen int
 }
 
 func NewAlphabet(symbols []string, groups map[string][]string) Alphabet {
+	symbols = listComprehension(symbols, norm.NFC.String)
+	for k := range groups {
+		groups[k] = listComprehension(groups[k], norm.NFC.String)
+	}
 	alph := Alphabet{symbols, groups, make(map[string][]string), make(map[int]Set[string]), 0}
 	//initialize groups
 	for groupName, symList := range alph.groups {
@@ -38,217 +41,69 @@ func NewAlphabet(symbols []string, groups map[string][]string) Alphabet {
 		if s_len > alph.maxSymbolLen {
 			alph.maxSymbolLen = s_len
 		}
+		for i := 0; i < alph.maxSymbolLen; i++ {
+			if _, ok := alph.symbolsByLen[i]; !ok {
+				alph.symbolsByLen[i] = NewSet[string]()
+			}
+		}
 	}
 	return alph
 }
 
-func (abc *Alphabet) SymStr(s string) SymStr {
-	if s == "" {
-		return []string{""}
-	}
+func (abc *Alphabet) SymStrFromTightString(s string) SymStr {
 	s = norm.NFC.String(s)
-	symStr := make(SymStr, 0, len(s))
-	for s != "" {
-		s_len := abc.maxSymbolLen
-		// process symbols by checking (by length) what length fits start of string
-		for ; s_len > 1; s_len-- {
-			if s_len > len(s) {
+	symstr := EmptySymStr()
+	for i := 0; i < len(s); {
+		var sym_len int
+		for sym_len = abc.maxSymbolLen; sym_len > 0; sym_len-- {
+			if i+sym_len > len(s) {
 				continue
 			}
-			key := s[:s_len]
-			if abc.symbolsByLen[s_len].contains(key) {
-				symStr = append(symStr, key)
-				s = s[s_len:]
+			candidate_str := s[i : i+sym_len]
+			if abc.symbolsByLen[sym_len].contains(candidate_str) {
+				fmt.Printf("Contained at %d\n", sym_len)
+				symstr = append(symstr, candidate_str)
+				i += sym_len
 				break
 			}
 		}
-		if s_len <= 1 {
-			key := s[:1]
-			symStr = append(symStr, key)
-			s = s[1:]
-		}
-	}
-	return symStr
-}
-
-func (abc *Alphabet) validateSymStr(ss SymStr) bool {
-	for i, s := range ss {
-
-	}
-}
-
-func (abc *Alphabet) stringToRegex(s string) string {
-	regex_string := ""
-	for _, r := range s {
-		c := string(r)
-		if group, ok := abc.groups[c]; ok {
-			regex_string += ("[" + strings.Join(group, "") + "]")
-		} else {
-			regex_string += c
-		}
-	}
-	return regex_string
-}
-
-func (abc *Alphabet) CompiledContextualChange(s_in, s_out, pre, post string) ContextualChange {
-	cc := ContextualChange{s_in, s_out, pre, post, nil}
-	// regex_text := fmt.Sprintf("(%s)%s(%s)", abc.stringToRegex(pre), cc.s_in, abc.stringToRegex(post))
-	regex_text := "(" + abc.stringToRegex(pre) + ")" + cc.s_in + "(" + abc.stringToRegex(post) + ")"
-	var err error
-	cc.compiled, err = regexp.Compile(regex_text)
-	if err != nil {
-		panic("Cannot compile regex '" + regex_text + "'")
-	}
-	return cc
-}
-
-func (abc *Alphabet) ContextualChangeFromString(text string) ContextualChange {
-	cc, err := ContextualChangeFromString(text)
-	if err == nil {
-		cc = abc.CompiledContextualChange(cc.s_in, cc.s_out, cc.pre, cc.post)
-	}
-	return cc
-}
-
-func (abc *Alphabet) compileChange(cc *ContextualChange) {
-	new_pre := abc.stringToRegex(cc.pre)
-	new_post := abc.stringToRegex(cc.post)
-	regex_text := fmt.Sprintf("(%s)%s(%s)", new_pre, cc.s_in, new_post)
-	cc.compiled = regexp.MustCompile(regex_text)
-	// cc.pre = new_pre
-	// cc.post = new_post
-}
-
-func (abc *Alphabet) applyChange(ss SymStr, cc *ContextualChange) SymStr {
-	return abc.SymStr(cc.applyString(ss))
-}
-
-func (abc *Alphabet) changedVocabulary(v Vocabulary, cc *ContextualChange) Vocabulary {
-	new_vocab := make(Vocabulary, len(v))
-	for i, word := range v {
-		new_vocab[i] = abc.applyChange(word, cc)
-	}
-	return new_vocab
-}
-
-func (abc *Alphabet) getSymStrGroupCombinations(ss SymStr) [][]string {
-	options := make([][]string, len(ss))
-	// for each symbol in ss, extract options (based on groups it belongs to)
-	for i, c := range ss {
-		substitutions := []string{c}
-		if group, ok := abc.sym2groupMap[c]; ok {
-			substitutions = append(substitutions, group...)
-		}
-		options[i] = substitutions
-	}
-	return ListProduct(options)
-}
-
-func (abc *Alphabet) getContextulChangeCombinations(cc *ContextualChange, pre_len int, post_len int) []ContextualChange {
-	if pre_len < 0 {
-		pre_len = len(cc.pre)
-	} else {
-		pre_len = min(pre_len, len(cc.pre))
-	}
-	if post_len < 0 {
-		post_len = len(cc.post)
-	} else {
-		post_len = min(post_len, len(cc.post))
-	}
-	combos := make([]ContextualChange, 0)
-	for i := range pre_len + 1 {
-		for j := range post_len + 1 {
-			combos = append(combos, abc.getContextulChangeCombinationsLen(cc, i, j)...)
-		}
-	}
-	return combos
-}
-
-func (abc *Alphabet) generalityScoreString(regex_string string) float64 {
-	if regex_string == "" {
-		return 0.0
-	}
-	score := 0.0
-	ss := abc.SymStr(regex_string)
-	for _, c := range ss {
-		if _, ok := abc.groups[c]; ok { // is a group
-			score += 0.5
-		} else {
-			score += 1
-		}
-	}
-	return score
-}
-
-func (abc *Alphabet) generalityScoreChange(cc *ContextualChange) float64 {
-	return abc.generalityScoreString(cc.pre) + abc.generalityScoreString(cc.post)
-}
-
-func (abc *Alphabet) getContextulChangeCombinationsLen(cc *ContextualChange, pre_len int, post_len int) []ContextualChange {
-	if pre_len < 0 {
-		pre_len = len(cc.pre)
-	} else {
-		pre_len = min(pre_len, len(cc.pre))
-	}
-	if post_len < 0 {
-		post_len = len(cc.post)
-	} else {
-		post_len = min(post_len, len(cc.post))
-	}
-	post_str := cc.post[:post_len]
-	pre_str := cc.pre[len(cc.pre)-pre_len:]
-	pre_combos := abc.getSymStrGroupCombinations(abc.SymStr(pre_str))
-	post_combos := abc.getSymStrGroupCombinations(abc.SymStr(post_str))
-	combo_list := make([]ContextualChange, len(pre_combos)*len(post_combos))
-	i := 0
-	for _, pre := range pre_combos {
-		for _, post := range post_combos {
-			combo_list[i] = abc.CompiledContextualChange(cc.s_in, cc.s_out,
-				strings.Join(pre, ""), strings.Join(post, ""))
-			// combo_list[i] = ContextualChange{cc.s_in, cc.s_out,
-			// 	SymStrConcat(pre).String(), SymStrConcat(post).String(), nil}
-			// abc.compileChange(&combo_list[i])
+		if sym_len == 0 { // not found, just add the rune
+			symstr = append(symstr, string(s[i]))
 			i++
 		}
 	}
-	return combo_list
+	return symstr
 }
 
-func testAlphabet() {
-	abc := NewAlphabet([]string{"a", "a00", "a01", "a10", "a11"}, make(map[string][]string))
-	input := "abcdefga0bcdefa01wera111a1ida10"
-	symStr := abc.SymStr(input)
-	for _, sym := range symStr {
-		fmt.Printf("'%s', ", sym)
-	}
-	fmt.Println()
+func (abc *Alphabet) NewContextualChange(s_in, s_out, pre, post SymStr) ContextualChange {
+	pre = abc.toRegexSymstr(pre)
+	post = abc.toRegexSymstr(post)
+	cc := NewContextualChange(s_in, s_out, pre, post)
 
+	return cc
 }
 
-func testNormalize() {
-	s := "/bat͡ʃʲ/"
-	abc := NewAlphabet([]string{"ʲ", "t͡ʃ"}, make(map[string][]string))
-	symStr := abc.SymStr(s)
-	for _, c := range symStr {
-		fmt.Println(c)
+func (abc *Alphabet) toRegexSymstr(ss SymStr) SymStr {
+	r_ss := make(SymStr, len(ss))
+	for i := range ss {
+		symbol := ss[i]
+		if group, ok := abc.groups[symbol]; ok {
+			group_regex := "(?:" + strings.Join(group, "|") + ")" //non-capturing group
+			r_ss[i] = group_regex
+		} else {
+			r_ss[i] = ss[i]
+		}
 	}
+	return r_ss
 }
 
-func testSymStrGroupCombinations(s string) {
-	abc := NewAlphabet([]string{"a", "b", "c", "d", "e"},
-		map[string][]string{
-			"V": {"a", "e", "i", "o", "u"},
-			"C": {"b", "c", "d", "f", "g"},
-			"B": {"b"},
-		},
-	)
-	if s == "" {
-		s = "ab1ed"
-	}
-	ss := NewSymStr(s)
-	fmt.Println(ss)
-	combos := abc.getSymStrGroupCombinations(ss)
-	for i, combo := range combos {
-		fmt.Printf("%d\t%s\n", i, combo)
-	}
+func NewSimpleAlphabet(vowels_spaced string, consonants_spaced string) Alphabet {
+	vowels_default := NewSetFromList(SymStrFromString("a e i o u ă î â"))
+	consonants_default := NewSetFromList(SymStrFromString("b c d f g h i j k l m n p q r s t v w x y z ș ț"))
+	vowels_in := NewSetFromList(SymStrFromString(vowels_spaced))
+	consonants_in := NewSetFromList(SymStrFromString(consonants_spaced))
+	vowels := vowels_default.union(vowels_in).difference(consonants_in).toList()
+	consonants := consonants_default.union(consonants_in).difference(vowels_in).toList()
+	all_symbols := SymStrConcat(vowels, consonants)
+	return NewAlphabet(all_symbols, map[string][]string{"V": vowels, "C": consonants})
 }

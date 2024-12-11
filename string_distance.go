@@ -41,50 +41,52 @@ var NO_POS = Position{-1, -1}
 const BOS = "^"
 const EOS = "$"
 
-type Change struct {
-	s_in  string
-	s_out string
+type Edit struct {
+	s_in  SymStr
+	s_out SymStr
 	from  Position
 	score int
 }
 
-func (chg Change) String() string {
+func (chg Edit) String() string {
 	s_in, s_out := chg.s_in, chg.s_out
-	if s_in == "" {
-		s_in = "0"
+	if s_in.Empty() {
+		s_in = SingleSymbolStr("0")
 	}
-	if s_out == "" {
-		s_out = "0"
+	if s_out.Empty() {
+		s_out = SingleSymbolStr("0")
 	}
 	return fmt.Sprintf("%s > %s", s_in, s_out)
 }
 
-func (chg Change) NoChange() bool {
-	return chg.s_in == chg.s_out
+func (chg Edit) NoChange() bool {
+	return chg.s_in.equals(chg.s_out)
 }
 
-func INS(ss string, from Position, score int) Change {
-	return Change{"", ss, from, score}
+func INS(ss string, from Position, score int) Edit {
+	return Edit{EmptySymStr(), SingleSymbolStr(ss), from, score}
 }
 
-func DEL(ss string, from Position, score int) Change {
-	return Change{ss, "", from, score}
+func DEL(ss string, from Position, score int) Edit {
+	return Edit{SingleSymbolStr(ss), EmptySymStr(), from, score}
 }
 
-func SUB(ss1, ss2 string, from Position, score int) Change {
-	return Change{ss1, ss2, from, score}
+func SUB(ss1, ss2 string, from Position, score int) Edit {
+	return Edit{SingleSymbolStr(ss1), SingleSymbolStr(ss2), from, score}
 }
 
-func (chg Change) isINS() bool { return chg.s_in == "" && chg.s_out != "" }
-func (chg Change) isDEL() bool { return chg.s_in != "" && chg.s_out == "" }
-func (chg Change) isSUB() bool { return chg.s_in != chg.s_out && chg.s_in != "" && chg.s_out != "" }
+func (chg Edit) isINS() bool { return chg.s_in.Empty() && !chg.s_out.Empty() }
+func (chg Edit) isDEL() bool { return !chg.s_in.Empty() && chg.s_out.Empty() }
+func (chg Edit) isSUB() bool {
+	return !chg.s_in.equals(chg.s_out) && !chg.s_in.Empty() && !chg.s_out.Empty()
+}
 
 type MatrixCell struct {
-	changes []Change
+	changes []Edit
 	score   int
 }
 
-func NewMatrixCell(changes []Change) MatrixCell {
+func NewMatrixCell(changes []Edit) MatrixCell {
 	cell := MatrixCell{changes, 0}
 	if len(changes) > 0 { // set cell score to be minimum score
 		cell.score = changes[0].score
@@ -121,7 +123,7 @@ func (mm ChangeMatrix) get(pos Position) *MatrixCell {
 
 func add_BOS_EOS(ss SymStr) SymStr {
 	//	return NewSymStr(BOS + ss.String() + EOS)
-	return SymStrConcat(NewSymStr(BOS), ss, NewSymStr(EOS))
+	return SymStrConcat(SingleSymbolStr(BOS), ss, SingleSymbolStr(EOS))
 }
 
 func GenerateChangeMatrix(w1, w2 SymStr) ChangeMatrix {
@@ -130,10 +132,10 @@ func GenerateChangeMatrix(w1, w2 SymStr) ChangeMatrix {
 
 	//Initialize first row and first column
 	for x := 1; x < matrix.xlen(); x++ {
-		matrix[x][0] = NewMatrixCell([]Change{DEL(w1[x], Position{x - 1, 0}, x)})
+		matrix[x][0] = NewMatrixCell([]Edit{DEL(w1[x], Position{x - 1, 0}, x)})
 	}
 	for y := 1; y < matrix.ylen(); y++ {
-		matrix[0][y] = NewMatrixCell([]Change{DEL(w2[y], Position{0, y - 1}, y)})
+		matrix[0][y] = NewMatrixCell([]Edit{DEL(w2[y], Position{0, y - 1}, y)})
 	}
 	//Populate matrix
 	for y := 1; y < matrix.ylen(); y++ {
@@ -144,7 +146,7 @@ func GenerateChangeMatrix(w1, w2 SymStr) ChangeMatrix {
 			} else {
 				substCost = 1
 			}
-			options := []Change{
+			options := []Edit{
 				DEL(w1[x], Position{x - 1, y}, matrix[x-1][y].score+1),
 				INS(w2[y], Position{x, y - 1}, matrix[x][y-1].score+1),
 				SUB(w1[x], w2[y], Position{x - 1, y - 1}, matrix[x-1][y-1].score+substCost),
@@ -161,9 +163,9 @@ func GenerateChangeMatrix(w1, w2 SymStr) ChangeMatrix {
 	return matrix
 }
 
-type ChangeSequence []Change
+type EditSequence []Edit
 
-func (chgSeq ChangeSequence) String() string {
+func (chgSeq EditSequence) String() string {
 	chgStrings := make([]string, len(chgSeq))
 	for i, chg := range chgSeq {
 		chgStrings[i] = chg.String()
@@ -171,17 +173,17 @@ func (chgSeq ChangeSequence) String() string {
 	return "[" + strings.Join(chgStrings, ", ") + "]"
 }
 
-func find_change_sequences(matrix ChangeMatrix, pos Position) []ChangeSequence {
+func find_change_sequences(matrix ChangeMatrix, pos Position) []EditSequence {
 	if pos == NO_POS {
 		pos = Position{matrix.xlen() - 1, matrix.ylen() - 1}
 	}
 	orig := Position{0, 0}
 	if pos == orig {
 		// return []ChangeSequence{ChangeSequence{SUB(BOS, BOS, NO_POS, 0)}}
-		return []ChangeSequence{{SUB(BOS, BOS, NO_POS, 0)}}
+		return []EditSequence{{SUB(BOS, BOS, NO_POS, 0)}}
 	}
 	cell := matrix.get(pos)
-	mod_paths := make([]ChangeSequence, 0)
+	mod_paths := make([]EditSequence, 0)
 	for _, mod := range cell.changes {
 		new_paths := find_change_sequences(matrix, mod.from)
 		for i := range new_paths {
@@ -192,14 +194,14 @@ func find_change_sequences(matrix ChangeMatrix, pos Position) []ChangeSequence {
 	return mod_paths
 }
 
-func word_pair_change_sequences(w1 SymStr, w2 SymStr) []ChangeSequence {
+func word_pair_change_sequences(w1 SymStr, w2 SymStr) []EditSequence {
 	matrix := GenerateChangeMatrix(w1, w2)
 	return find_change_sequences(matrix, NO_POS)
 }
 
-func wordPairChangeSequencesVersions(w1 SymStr, w2 SymStr) []ChangeSequence {
+func wordPairChangeSequencesAll(w1 SymStr, w2 SymStr) []EditSequence {
 	original_seqs := word_pair_change_sequences(w1, w2)
-	all_seqs := make([]ChangeSequence, len(original_seqs))
+	all_seqs := make([]EditSequence, len(original_seqs))
 	copy(all_seqs, original_seqs)
 	for _, seq := range original_seqs {
 		versions := changeSequenceGetVersions(seq)
@@ -208,20 +210,21 @@ func wordPairChangeSequencesVersions(w1 SymStr, w2 SymStr) []ChangeSequence {
 	return all_seqs
 }
 
-func changeSequenceGetVersions(c_seq ChangeSequence) []ChangeSequence {
+func changeSequenceGetVersions(c_seq EditSequence) []EditSequence {
 	//substitution + deletion -> merger (a>0, j>e -> aj>e, eg. Caesar -> Cesar)
 	//substitution + insertion -> expansion (e>j, 0>a -> e>ja, e.g. erba -> iarba)
 	// substitution + substitution -> transposition if c1.in == c2.out and c1.out == c2.in (e>r, r>e -> er > re, e.g. per -> pre)
 	//...or vice-versa
-	versions := make([]ChangeSequence, 0, len(c_seq)-1)
+	versions := make([]EditSequence, 0, len(c_seq)-1)
 	for i := 0; i < len(c_seq)-1; i++ {
 		current := c_seq[i]
 		next := c_seq[i+1]
 		if !current.NoChange() && !next.NoChange() && !(current.isDEL() && next.isDEL()) &&
 			(!(current.isSUB() && next.isSUB()) ||
-				(current.s_in == next.s_out && current.s_out == next.s_in)) {
-			new_chg := Change{current.s_in + next.s_in, current.s_out + next.s_out, current.from, 1}
-			new_chg_slice := ChangeSequence{new_chg}
+				(current.s_in.equals(next.s_out) && current.s_out.equals(next.s_in))) {
+			new_chg := Edit{slices.Concat(current.s_in, next.s_in), slices.Concat(current.s_out, next.s_out),
+				current.from, 1}
+			new_chg_slice := EditSequence{new_chg}
 			new_seq := slices.Concat(c_seq[:i], new_chg_slice, c_seq[i+2:])
 			versions = append(versions, new_seq)
 		}

@@ -20,14 +20,6 @@ func filter[T any](input []T, test func(T) bool) []T {
 	return output[:out_len]
 }
 
-func SymStrConcat(list ...SymStr) SymStr {
-	output := SymStr{}
-	for _, item := range list {
-		output = append(output, item...)
-	}
-	return output
-}
-
 type Set[T comparable] map[T]struct{}
 
 func NewSet[T comparable]() Set[T] {
@@ -93,6 +85,15 @@ func (this Set[T]) intersection(other Set[T]) Set[T] {
 		}
 	}
 	return u
+}
+
+type ComparableStringer interface {
+	comparable
+	String() string
+}
+
+func Set2String[T ComparableStringer](set Set[T]) string {
+	return "{" + strings.Join(listComprehension(set.toList(), func(item T) string { return item.String() }), ", ") + "}"
 }
 
 func InitMatrix[T any](num_rows, row_length int) [][]T {

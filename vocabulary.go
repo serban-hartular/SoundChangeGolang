@@ -1,6 +1,8 @@
 package main
 
 import (
+	// "maps"
+	// "slices"
 	"maps"
 	"slices"
 	"strings"
@@ -44,7 +46,7 @@ func (v Vocabulary) String() string {
 func (v Vocabulary) applyChange(cc ContextualChange) Vocabulary {
 	v1 := make(Vocabulary, len(v))
 	for i, word := range v {
-		v1[i] = cc.apply(word)
+		v1[i] = cc.applyString(word)
 	}
 	return v1
 }
@@ -68,7 +70,7 @@ func (v Vocabulary) getAllChangesInContext(other Vocabulary) []ContextualChange 
 	for i := range v {
 		initial := v[i]
 		final := other[i]
-		change_seqs := wordPairChangeSequencesVersions(initial, final) //word_pair_change_sequences(initial, final)
+		change_seqs := wordPairChangeSequencesAll(initial, final) //word_pair_change_sequences(initial, final)
 		for _, seq := range change_seqs {
 			//all_ccs = append(all_ccs, seq.getChangesInContext()...)
 			for _, cc := range seq.getChangesInContext() {
@@ -79,8 +81,8 @@ func (v Vocabulary) getAllChangesInContext(other Vocabulary) []ContextualChange 
 	return slices.Collect(maps.Values(all_ccs))
 }
 
-func (chg_seq ChangeSequence) getChangesInContext() []ContextualChange {
-	initialStr := ""
+func (chg_seq EditSequence) getChangesInContext() []ContextualChange {
+	initialStr := make(SymStr, 0, len(chg_seq))
 	chg_indices := make([]int, 0, len(chg_seq))
 	chg_string_positions := make([]int, 0)
 	//traverse change sequence to reconstruct initial string and mark positions in initial stirng where
@@ -90,7 +92,7 @@ func (chg_seq ChangeSequence) getChangesInContext() []ContextualChange {
 			chg_indices = append(chg_indices, i)
 			chg_string_positions = append(chg_string_positions, len(initialStr))
 		}
-		initialStr += chg.s_in
+		initialStr = SymStrConcat(initialStr, chg.s_in)
 	}
 	cc_list := make([]ContextualChange, len(chg_indices))
 	for i, chg_index := range chg_indices {
@@ -102,10 +104,3 @@ func (chg_seq ChangeSequence) getChangesInContext() []ContextualChange {
 	}
 	return cc_list
 }
-
-// func (v Vocabulary) getChangesInContext(other Vocabulary) []ContextualChange {
-// 	if len(v) != len(other) {
-// 		panic("Unequal vocabularies being compared for changes")
-// 	}
-
-// }
