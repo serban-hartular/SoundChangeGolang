@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"strings"
 
 	"golang.org/x/text/unicode/norm"
@@ -61,7 +60,6 @@ func (abc *Alphabet) SymStrFromTightString(s string) SymStr {
 			}
 			candidate_str := s[i : i+sym_len]
 			if abc.symbolsByLen[sym_len].contains(candidate_str) {
-				fmt.Printf("Contained at %d\n", sym_len)
 				symstr = append(symstr, candidate_str)
 				i += sym_len
 				break
@@ -76,10 +74,12 @@ func (abc *Alphabet) SymStrFromTightString(s string) SymStr {
 }
 
 func (abc *Alphabet) NewContextualChange(s_in, s_out, pre, post SymStr) ContextualChange {
-	pre = abc.toRegexSymstr(pre)
-	post = abc.toRegexSymstr(post)
-	cc := NewContextualChange(s_in, s_out, pre, post)
+	regex_pre := abc.toRegexSymstr(pre)
+	regex_post := abc.toRegexSymstr(post)
+	cc := NewContextualChange(s_in, s_out, regex_pre, regex_post)
 	cc.compile()
+	cc.pre = pre
+	cc.post = post
 
 	return cc
 }
@@ -109,6 +109,18 @@ func NewSimpleAlphabet(vowels_spaced string, consonants_spaced string) Alphabet 
 	return NewAlphabet(all_symbols, map[string][]string{"V": vowels, "C": consonants})
 }
 
+func (abc *Alphabet) getContextualChangeCombos(cc ContextualChange) []ContextualChange {
+	pre_options := abc.getSymStrGroupCombos(cc.pre)
+	post_options := abc.getSymStrGroupCombos(cc.post)
+	cc_options := make([]ContextualChange, len(pre_options)*len(post_options))
+	for i, pre := range pre_options {
+		for j, post := range post_options {
+			cc_options[i*len(pre_options)+j] = abc.NewContextualChange(cc.s_in, cc.s_out, pre, post)
+		}
+	}
+	return cc_options
+}
+
 func (abc *Alphabet) getSymStrGroupCombos(ss SymStr) []SymStr {
 	if len(ss) < 1 {
 		return []SymStr{}
@@ -128,4 +140,20 @@ func (abc *Alphabet) getSymStrGroupCombos(ss SymStr) []SymStr {
 		}
 	}
 	return combo_options
+}
+
+func (abc *Alphabet) generalityScoreChange(cc *ContextualChange) double {
+	return abc.generalityScoreContextString(cc.pre) + abc.generalityScoreContextString(cc.post)
+}
+
+func (abc *Alphabet) generalityScoreContextString(ss SymStr) double {
+	sum := double(0.0)
+	for _, symbol := range ss {
+		if _, ok := abc.groups[symbol]; ok { //is a group symbol
+			sum += 0.5
+		} else {
+			sum += 1.0
+		}
+	}
+	return sum
 }

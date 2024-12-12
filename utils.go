@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -18,82 +17,6 @@ func filter[T any](input []T, test func(T) bool) []T {
 		}
 	}
 	return output[:out_len]
-}
-
-type Set[T comparable] map[T]struct{}
-
-func NewSet[T comparable]() Set[T] {
-	return make(Set[T])
-}
-
-var _empty struct{}
-
-func (set Set[T]) put(item T) {
-	set[item] = _empty
-}
-
-func (set Set[T]) putList(items []T) {
-	for _, item := range items {
-		set.put(item)
-	}
-}
-
-func NewSetFromList[T comparable](items []T) Set[T] {
-	set := NewSet[T]()
-	set.putList(items)
-	return set
-}
-
-func (set Set[T]) contains(item T) bool {
-	_, ok := set[item]
-	return ok
-}
-
-func (set Set[T]) pop(item T) {
-	delete(set, item)
-}
-
-func (set Set[T]) toList() []T {
-	return slices.Collect(maps.Keys(set))
-}
-
-func (this Set[T]) union(other Set[T]) Set[T] {
-	u := NewSet[T]()
-	for _, set := range []Set[T]{this, other} {
-		for _, k := range set.toList() {
-			u.put(k)
-		}
-	}
-	return u
-}
-
-func (this Set[T]) difference(other Set[T]) Set[T] {
-	u := NewSet[T]()
-	for _, k := range this.toList() {
-		if !other.contains(k) {
-			u.put(k)
-		}
-	}
-	return u
-}
-
-func (this Set[T]) intersection(other Set[T]) Set[T] {
-	u := NewSet[T]()
-	for _, k := range this.toList() {
-		if other.contains(k) {
-			u.put(k)
-		}
-	}
-	return u
-}
-
-type ComparableStringer interface {
-	comparable
-	String() string
-}
-
-func Set2String[T ComparableStringer](set Set[T]) string {
-	return "{" + strings.Join(listComprehension(set.toList(), func(item T) string { return item.String() }), ", ") + "}"
 }
 
 func InitMatrix[T any](num_rows, row_length int) [][]T {

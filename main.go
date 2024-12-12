@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"strings"
 	// "maps"
 	// "slices"
 	// "sort"
@@ -19,9 +18,13 @@ func main() {
 	for i, w0 := range vocab {
 		fmt.Printf("%s\t%s\n", w0, target[i])
 	}
-	changes := wordPairChangeSequencesAll(vocab[0], target[0])
-	for _, change := range changes {
-		fmt.Println(change)
-		fmt.Println(strings.Join(listComprehension(editSequence2ContextualChanges(change), func(cc ContextualChange) string { return cc.String() }), "; "))
+	changes := wordPairChangeSequencesAll(vocab[1], target[1])
+	change_seq := changes[0]
+	fmt.Println(change_seq)
+	cc_list := editSequence2ContextualChanges(change_seq)
+	fmt.Println(cc_list[0])
+	cc_options := abc.getContextualChangeCombos(cc_list[0])
+	for _, cc := range cc_options {
+		fmt.Println(cc, cc.compiled)
 	}
 }

@@ -1,8 +1,8 @@
 package main
 
 import (
-	"maps"
-	"slices"
+	"fmt"
+	"sort"
 )
 
 type double float64
@@ -13,9 +13,13 @@ type SearchNode struct {
 	abc           *Alphabet
 	parent        *SearchNode
 	changeApplied []ContextualChange
-	children      map[string]*SearchNode
+	children      StringerSet[*SearchNode] //map[string]*SearchNode
 	editDistance  int
 	depth         int
+}
+
+func (node *SearchNode) String() string {
+	return node.vocabulary.String()
 }
 
 func NewSearchNode(vocab Vocabulary, target Vocabulary, abc *Alphabet, parent *SearchNode, changeApplied []ContextualChange) *SearchNode {
@@ -32,49 +36,51 @@ func NewRootNode(vocab Vocabulary, target Vocabulary, abc *Alphabet) *SearchNode
 }
 
 func (node *SearchNode) ChildrenList() []*SearchNode {
-	return slices.Collect(maps.Values(node.children))
+	return node.children.toList()
 }
 
-// func (node *SearchNode) expand() {
-// 	fmt.Printf("Expanding node distance=%d, ", node.editDistance)
-// 	changes := node.getPossibleChanges(-1, -1)
-// 	fmt.Printf("possible changes=%d, ", len(changes))
-// 	node.children = make(map[string]*SearchNode)
-// 	for _, cc := range changes {
-// 		new_vocab := node.abc.changedVocabulary(node.vocabulary, &cc)
-// 		key := new_vocab.String()
-// 		if child, ok := node.children[key]; ok {
-// 			child.changeApplied = append(child.changeApplied, cc)
-// 		} else {
-// 			node.children[key] = NewSearchNode(new_vocab, node.targetVocab, node.abc, node, []ContextualChange{cc})
-// 		}
-// 	}
-// 	fmt.Printf("expanded %d children\n", len(node.children))
-// 	// sort changeApplied by degree of generality
-// 	for _, child := range node.children {
-// 		sort.SliceStable(child.changeApplied, func(i, j int) bool {
-// 			return node.abc.generalityScoreChange(&child.changeApplied[i]) < node.abc.generalityScoreChange(&child.changeApplied[j])
-// 		})
-// 	}
-// }
+func (node *SearchNode) expand() {
+	fmt.Printf("Expanding node distance=%d, ", node.editDistance)
+	changes := node.getPossibleChanges(-1, -1)
+	fmt.Printf("possible changes=%d, ", len(changes))
+	node.children = make(map[string]*SearchNode)
+	for _, cc := range changes {
+		new_vocab := node.vocabulary.applyChange(cc)
+		// key := new_vocab.String()
+		// if child, ok := node.children[key]; ok {
+		// 	child.changeApplied = append(child.changeApplied, cc)
+		// } else {
+		// 	node.children[key] = NewSearchNode(new_vocab, node.targetVocab, node.abc, node, []ContextualChange{cc})
+		// }
+		node.children.put(NewSearchNode(new_vocab, node.targetVocab, node.abc, node, []ContextualChange{cc}))
+	}
+	fmt.Printf("expanded %d children\n", len(node.children))
+	// sort changeApplied by degree of generality
+	for _, child := range node.children {
+		sort.SliceStable(child.changeApplied, func(i, j int) bool {
+			return node.abc.generalityScoreChange(&child.changeApplied[i]) < node.abc.generalityScoreChange(&child.changeApplied[j])
+		})
+	}
+}
 
-// func (node *SearchNode) getPossibleChanges(pre_len, post_len int) []ContextualChange {
-// 	changesInContext := node.vocabulary.getAllChangesInContext(node.targetVocab)
-// 	changesUnique := make(map[string]ContextualChange)
-// 	for _, change := range changesInContext {
-// 		combos := node.abc.getContextulChangeCombinations(&change, pre_len, post_len)
-// 		for _, cc := range combos {
-// 			changesUnique[cc.String()] = cc
-// 		}
-// 	}
-// 	return slices.Collect(maps.Values(changesUnique))
-// }
+func (node *SearchNode) getPossibleChanges(pre_len, post_len int) []ContextualChange {
+	changesInContext := node.vocabulary.getAllChangesInContext(node.targetVocab)
+	changesUnique := NewStringerSetFromList(changesInContext)
+	// changesUnique := make(map[string]ContextualChange)
+	// for _, change := range changesInContext {
+	// 	combos := node.abc.getContextualChangeCombos(change)
+	// 	for _, cc := range combos {
+	// 		changesUnique[cc.String()] = cc
+	// 	}
+	// }
+	return changesUnique.toList()
+}
 
-// func evalFn(node *SearchNode) double {
-// 	cost := double(node.depth) * 0.99
-// 	eval_remaining := double(node.editDistance)
-// 	return cost + eval_remaining
-// }
+func evalFn(node *SearchNode) double {
+	cost := double(node.depth) * 0.99
+	eval_remaining := double(node.editDistance)
+	return cost + eval_remaining
+}
 
 // func findSolution(root *SearchNode) *SearchNode {
 // 	queue := []*SearchNode{root}
