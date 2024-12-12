@@ -10,7 +10,7 @@ import (
 type Alphabet struct {
 	symbols      []string
 	groups       map[string][]string // list of symbols that belong to group 'key'
-	sym2groupMap map[string][]string //maps symbol to a group
+	sym2groupMap map[string][]string //maps symbol to a list of groups
 	symbolsByLen map[int]Set[string] //maps symbols by length (in runes)
 	maxSymbolLen int
 }
@@ -79,6 +79,7 @@ func (abc *Alphabet) NewContextualChange(s_in, s_out, pre, post SymStr) Contextu
 	pre = abc.toRegexSymstr(pre)
 	post = abc.toRegexSymstr(post)
 	cc := NewContextualChange(s_in, s_out, pre, post)
+	cc.compile()
 
 	return cc
 }
@@ -106,4 +107,25 @@ func NewSimpleAlphabet(vowels_spaced string, consonants_spaced string) Alphabet 
 	consonants := consonants_default.union(consonants_in).difference(vowels_in).toList()
 	all_symbols := SymStrConcat(vowels, consonants)
 	return NewAlphabet(all_symbols, map[string][]string{"V": vowels, "C": consonants})
+}
+
+func (abc *Alphabet) getSymStrGroupCombos(ss SymStr) []SymStr {
+	if len(ss) < 1 {
+		return []SymStr{}
+	}
+	options := []string{ss[0]}
+	if groups, ok := abc.sym2groupMap[ss[0]]; ok {
+		options = append(options, groups...)
+	}
+	options_symstrs := listComprehension(options, SingleSymbol) //each a symbol string
+	if len(ss) == 1 {
+		return options_symstrs
+	}
+	combo_options := make([]SymStr, 0)
+	for _, this_symbol := range options_symstrs {
+		for _, next_combo := range abc.getSymStrGroupCombos(ss[1:]) {
+			combo_options = append(combo_options, SymStrConcat(this_symbol, next_combo))
+		}
+	}
+	return combo_options
 }

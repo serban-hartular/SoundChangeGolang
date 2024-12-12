@@ -18,7 +18,7 @@ func SymStrFromString(s string) SymStr {
 	return strings.FieldsFunc(s, func(c rune) bool { return c == SYMSEP })
 }
 
-func SingleSymbolStr(s string) SymStr {
+func SingleSymbol(s string) SymStr {
 	s = norm.NFC.String(s)
 	symstr := SymStr{s}
 	return symstr

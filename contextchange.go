@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"regexp"
+	"strings"
 )
 
 type ContextualChange struct {
@@ -19,9 +20,8 @@ func NewContextualChange(s_in, s_out, pre, post SymStr) ContextualChange {
 }
 func (cc *ContextualChange) compile() {
 	// regex_text := fmt.Sprintf("(%s)%s(%s)", cc.pre, cc.s_in, cc.post)
-	regex_text := "(" + cc.pre.String() + ") " + cc.s_in.String() + " (" + cc.post.String() + ")"
+	regex_text := strings.Join([]string{"(" + cc.pre.String() + ")", cc.s_in.String(), "(" + cc.post.String() + ")"}, " ")
 	cc.compiled = regexp.MustCompile(regex_text)
-
 }
 
 func (cc *ContextualChange) applyString(initial SymStr) SymStr {

@@ -38,8 +38,8 @@ type Position struct {
 
 var NO_POS = Position{-1, -1}
 
-const BOS = "^"
-const EOS = "$"
+const BOS = "#"
+const EOS = "#"
 
 type Edit struct {
 	s_in  SymStr
@@ -51,10 +51,10 @@ type Edit struct {
 func (chg Edit) String() string {
 	s_in, s_out := chg.s_in, chg.s_out
 	if s_in.Empty() {
-		s_in = SingleSymbolStr("0")
+		s_in = SingleSymbol("0")
 	}
 	if s_out.Empty() {
-		s_out = SingleSymbolStr("0")
+		s_out = SingleSymbol("0")
 	}
 	return fmt.Sprintf("%s > %s", s_in, s_out)
 }
@@ -64,15 +64,15 @@ func (chg Edit) NoChange() bool {
 }
 
 func INS(ss string, from Position, score int) Edit {
-	return Edit{EmptySymStr(), SingleSymbolStr(ss), from, score}
+	return Edit{EmptySymStr(), SingleSymbol(ss), from, score}
 }
 
 func DEL(ss string, from Position, score int) Edit {
-	return Edit{SingleSymbolStr(ss), EmptySymStr(), from, score}
+	return Edit{SingleSymbol(ss), EmptySymStr(), from, score}
 }
 
 func SUB(ss1, ss2 string, from Position, score int) Edit {
-	return Edit{SingleSymbolStr(ss1), SingleSymbolStr(ss2), from, score}
+	return Edit{SingleSymbol(ss1), SingleSymbol(ss2), from, score}
 }
 
 func (chg Edit) isINS() bool { return chg.s_in.Empty() && !chg.s_out.Empty() }
@@ -123,7 +123,7 @@ func (mm ChangeMatrix) get(pos Position) *MatrixCell {
 
 func add_BOS_EOS(ss SymStr) SymStr {
 	//	return NewSymStr(BOS + ss.String() + EOS)
-	return SymStrConcat(SingleSymbolStr(BOS), ss, SingleSymbolStr(EOS))
+	return SymStrConcat(SingleSymbol(BOS), ss, SingleSymbol(EOS))
 }
 
 func GenerateChangeMatrix(w1, w2 SymStr) ChangeMatrix {
